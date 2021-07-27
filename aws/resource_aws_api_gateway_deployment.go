@@ -45,7 +45,6 @@ func resourceAwsApiGatewayDeployment() *schema.Resource {
 			"triggers": {
 				Type:     schema.TypeMap,
 				Optional: true,
-				ForceNew: true,
 				Elem:     &schema.Schema{Type: schema.TypeString},
 			},
 
@@ -158,6 +157,12 @@ func resourceAwsApiGatewayDeploymentUpdateOperations(d *schema.ResourceData) []*
 
 func resourceAwsApiGatewayDeploymentUpdate(d *schema.ResourceData, meta interface{}) error {
 	conn := meta.(*AWSClient).apigatewayconn
+
+	if d.HasChange("triggers") {
+		log.Printf("[DEBUG] Update to triggers causes new deployment API Gateway API Key: %s", d.Id())
+
+		return resourceAwsApiGatewayDeploymentCreate(d, meta)
+	}
 
 	log.Printf("[DEBUG] Updating API Gateway API Key: %s", d.Id())
 
