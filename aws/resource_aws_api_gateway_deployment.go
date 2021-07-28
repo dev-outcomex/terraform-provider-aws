@@ -1,6 +1,7 @@
 package aws
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"time"
@@ -8,6 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/service/apigateway"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/customdiff"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
@@ -69,7 +71,25 @@ func resourceAwsApiGatewayDeployment() *schema.Resource {
 				Type:     schema.TypeString,
 				Computed: true,
 			},
+
+			"refreshed_id": {
+				Type:     schema.TypeString,
+				Computed: true,
+			},
 		},
+
+		CustomizeDiff: customdiff.All(
+			func(ctx context.Context, d *schema.ResourceDiff, meta interface{}) error {
+				if d.HasChange("triggers") {
+					d.SetNewComputed("execution_arn")
+					d.SetNewComputed("invoke_url")
+					d.SetNewComputed("created_date")
+					d.SetNewComputed("refreshed_id")
+				}
+
+				return nil
+			},
+		),
 	}
 }
 
@@ -137,6 +157,8 @@ func resourceAwsApiGatewayDeploymentRead(d *schema.ResourceData, meta interface{
 	if err := d.Set("created_date", out.CreatedDate.Format(time.RFC3339)); err != nil {
 		log.Printf("[DEBUG] Error setting created_date: %s", err)
 	}
+
+	d.Set("refreshed_id", aws.StringValue(out.Id))
 
 	return nil
 }
