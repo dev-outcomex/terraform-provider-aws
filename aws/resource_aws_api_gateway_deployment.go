@@ -1,6 +1,7 @@
 package aws
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"time"
@@ -8,6 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/service/apigateway"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/customdiff"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
@@ -45,7 +47,6 @@ func resourceAwsApiGatewayDeployment() *schema.Resource {
 			"triggers": {
 				Type:     schema.TypeMap,
 				Optional: true,
-				ForceNew: true,
 				Elem:     &schema.Schema{Type: schema.TypeString},
 			},
 
@@ -70,7 +71,25 @@ func resourceAwsApiGatewayDeployment() *schema.Resource {
 				Type:     schema.TypeString,
 				Computed: true,
 			},
+
+			"refreshed_id": {
+				Type:     schema.TypeString,
+				Computed: true,
+			},
 		},
+
+		CustomizeDiff: customdiff.All(
+			func(ctx context.Context, d *schema.ResourceDiff, meta interface{}) error {
+				if d.HasChange("triggers") {
+					d.SetNewComputed("execution_arn")
+					d.SetNewComputed("invoke_url")
+					d.SetNewComputed("created_date")
+					d.SetNewComputed("refreshed_id")
+				}
+
+				return nil
+			},
+		),
 	}
 }
 
@@ -139,6 +158,8 @@ func resourceAwsApiGatewayDeploymentRead(d *schema.ResourceData, meta interface{
 		log.Printf("[DEBUG] Error setting created_date: %s", err)
 	}
 
+	d.Set("refreshed_id", aws.StringValue(out.Id))
+
 	return nil
 }
 
@@ -158,6 +179,12 @@ func resourceAwsApiGatewayDeploymentUpdateOperations(d *schema.ResourceData) []*
 
 func resourceAwsApiGatewayDeploymentUpdate(d *schema.ResourceData, meta interface{}) error {
 	conn := meta.(*AWSClient).apigatewayconn
+
+	if d.HasChange("triggers") {
+		log.Printf("[DEBUG] Update to triggers causes new deployment API Gateway API Key: %s", d.Id())
+
+		return resourceAwsApiGatewayDeploymentCreate(d, meta)
+	}
 
 	log.Printf("[DEBUG] Updating API Gateway API Key: %s", d.Id())
 
